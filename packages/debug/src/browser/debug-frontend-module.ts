@@ -51,6 +51,7 @@ import { bindLaunchPreferences } from './preferences/launch-preferences';
 import { DebugPrefixConfiguration } from './debug-prefix-configuration';
 import { CommandContribution } from '@theia/core/lib/common/command';
 import { TabBarToolbarContribution } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import { DebugWatchManager } from './debug-watch-manager';
 
 export default new ContainerModule((bind: interfaces.Bind) => {
     bind(DebugCallStackItemTypeKey).toDynamicValue(({ container }) =>
@@ -100,4 +101,6 @@ export default new ContainerModule((bind: interfaces.Bind) => {
 
     bindDebugPreferences(bind);
     bindLaunchPreferences(bind);
+
+    bind(DebugWatchManager).toSelf().inSingletonScope();
 });
