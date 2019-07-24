@@ -14,19 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { AbstractViewContribution, ApplicationShell, KeybindingRegistry, Widget, CompositeTreeNode } from '@theia/core/lib/browser';
+import { AbstractViewContribution, ApplicationShell, KeybindingRegistry, Widget, CompositeTreeNode, LabelProvider } from '@theia/core/lib/browser';
 import { injectable, inject } from 'inversify';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 import { MenuModelRegistry, CommandRegistry, MAIN_MENU_BAR, Command, Emitter, Mutable } from '@theia/core/lib/common';
 import { DebugViewLocation } from '../common/debug-configuration';
-import { EditorKeybindingContexts } from '@theia/editor/lib/browser';
+import { EditorKeybindingContexts, EditorManager } from '@theia/editor/lib/browser';
 import { DebugSessionManager } from './debug-session-manager';
 import { DebugWidget } from './view/debug-widget';
+import { FunctionBreakpoint } from './breakpoint/breakpoint-marker';
 import { BreakpointManager } from './breakpoint/breakpoint-manager';
 import { DebugConfigurationManager } from './debug-configuration-manager';
 import { DebugState, DebugSession } from './debug-session';
 import { DebugBreakpointsWidget } from './view/debug-breakpoints-widget';
-import { DebugBreakpoint } from './model/debug-breakpoint';
+import { DebugSourceBreakpoint } from './model/debug-source-breakpoint';
 import { DebugThreadsWidget } from './view/debug-threads-widget';
 import { DebugThread } from './model/debug-thread';
 import { DebugStackFramesWidget } from './view/debug-stack-frames-widget';
@@ -46,6 +47,7 @@ import { DebugWatchWidget } from './view/debug-watch-widget';
 import { DebugWatchExpression } from './view/debug-watch-expression';
 import { DebugWatchManager } from './debug-watch-manager';
 import { DebugSessionOptions } from './debug-session-options';
+import { DebugFunctionBreakpoint } from './model/debug-function-breakpoint';
 
 export namespace DebugMenus {
     export const DEBUG = [...MAIN_MENU_BAR, '6_debug'];
@@ -148,6 +150,11 @@ export namespace DebugCommands {
         id: 'debug.breakpoint.add.logpoint',
         category: DEBUG_CATEGORY,
         label: 'Add Logpoint...',
+    };
+    export const ADD_FUNCTION_BREAKPOINT: Command = {
+        id: 'debug.breakpoint.add.function',
+        category: DEBUG_CATEGORY,
+        label: 'Add Function Breakpoint...',
     };
     export const ENABLE_ALL_BREAKPOINTS: Command = {
         id: 'debug.breakpoint.enableAll',
@@ -396,6 +403,12 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
 
     @inject(DebugWatchManager)
     protected readonly watchManager: DebugWatchManager;
+
+    @inject(LabelProvider)
+    protected readonly labelProvider: LabelProvider;
+
+    @inject(EditorManager)
+    protected readonly editorManager: EditorManager;
 
     constructor() {
         super({
@@ -709,13 +722,22 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
             execute: () => this.editors.addBreakpoint('logMessage'),
             isEnabled: () => !!this.editors.model && !this.editors.anyBreakpoint
         });
+        registry.registerCommand(DebugCommands.ADD_FUNCTION_BREAKPOINT, {
+            execute: async () => {
+                const { labelProvider, breakpointManager, editorManager } = this;
+                const options = { labelProvider, breakpoints: breakpointManager, editorManager };
+                await new DebugFunctionBreakpoint(FunctionBreakpoint.create({ name: '' }), options).open();
+            },
+            isEnabled: widget => !(widget instanceof Widget) || widget instanceof DebugBreakpointsWidget,
+            isVisible: widget => !(widget instanceof Widget) || widget instanceof DebugBreakpointsWidget
+        });
         registry.registerCommand(DebugCommands.ENABLE_ALL_BREAKPOINTS, {
             execute: () => this.breakpointManager.enableAllBreakpoints(true),
-            isEnabled: () => !!this.breakpointManager.getUris().next().value
+            isEnabled: () => this.breakpointManager.hasBreakpoints()
         });
         registry.registerCommand(DebugCommands.DISABLE_ALL_BREAKPOINTS, {
             execute: () => this.breakpointManager.enableAllBreakpoints(false),
-            isEnabled: () => !!this.breakpointManager.getUris().next().value
+            isEnabled: () => this.breakpointManager.hasBreakpoints()
         });
         registry.registerCommand(DebugCommands.EDIT_BREAKPOINT, {
             execute: async () => {
@@ -758,8 +780,8 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
             isVisible: () => !!this.selectedLogpoint
         });
         registry.registerCommand(DebugCommands.REMOVE_ALL_BREAKPOINTS, {
-            execute: () => this.breakpointManager.cleanAllMarkers(),
-            isEnabled: () => !!this.breakpointManager.getUris().next().value,
+            execute: () => this.breakpointManager.removeBreakpoints(),
+            isEnabled: () => this.breakpointManager.hasBreakpoints(),
             isVisible: widget => !(widget instanceof Widget) || (widget instanceof DebugBreakpointsWidget)
         });
         registry.registerCommand(DebugCommands.TOGGLE_BREAKPOINTS_ENABLED, {
@@ -1012,7 +1034,8 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
             id: DebugCommands.TOGGLE_BREAKPOINTS_ENABLED.id,
             command: DebugCommands.TOGGLE_BREAKPOINTS_ENABLED.id,
             icon: 'fa breakpoints-activate',
-            onDidChange: onDidChangeToggleBreakpointsEnabled.event
+            onDidChange: onDidChangeToggleBreakpointsEnabled.event,
+            priority: 1
         };
         const updateToggleBreakpointsEnabled = () => {
             const tooltip = this.breakpointManager.breakpointsEnabled ? 'Deactivate Breakpoints' : 'Activate Breakpoints';
@@ -1021,6 +1044,12 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
                 onDidChangeToggleBreakpointsEnabled.fire(undefined);
             }
         };
+        toolbar.registerItem({
+            id: DebugCommands.ADD_FUNCTION_BREAKPOINT.id,
+            command: DebugCommands.ADD_FUNCTION_BREAKPOINT.id,
+            icon: 'theia-add-icon',
+            tooltip: 'Add Function Breakpoint'
+        });
         updateToggleBreakpointsEnabled();
         this.breakpointManager.onDidChangeBreakpoints(updateToggleBreakpointsEnabled);
         toolbar.registerItem(toggleBreakpointsEnabled);
@@ -1028,7 +1057,7 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
             id: DebugCommands.REMOVE_ALL_BREAKPOINTS.id,
             command: DebugCommands.REMOVE_ALL_BREAKPOINTS.id,
             icon: 'theia-remove-all-icon',
-            priority: 1
+            priority: 2
         });
 
         toolbar.registerItem({
@@ -1143,15 +1172,15 @@ export class DebugFrontendApplicationContribution extends AbstractViewContributi
         const { currentWidget } = this.shell;
         return currentWidget instanceof DebugBreakpointsWidget && currentWidget || undefined;
     }
-    get selectedAnyBreakpoint(): DebugBreakpoint | undefined {
+    get selectedAnyBreakpoint(): DebugSourceBreakpoint | undefined {
         const { breakpoints } = this;
-        return breakpoints && breakpoints.selectedElement instanceof DebugBreakpoint && breakpoints.selectedElement || undefined;
+        return breakpoints && breakpoints.selectedElement instanceof DebugSourceBreakpoint && breakpoints.selectedElement || undefined;
     }
-    get selectedBreakpoint(): DebugBreakpoint | undefined {
+    get selectedBreakpoint(): DebugSourceBreakpoint | undefined {
         const breakpoint = this.selectedAnyBreakpoint;
         return breakpoint && !breakpoint.logMessage ? breakpoint : undefined;
     }
-    get selectedLogpoint(): DebugBreakpoint | undefined {
+    get selectedLogpoint(): DebugSourceBreakpoint | undefined {
         const breakpoint = this.selectedAnyBreakpoint;
         return breakpoint && !!breakpoint.logMessage ? breakpoint : undefined;
     }
