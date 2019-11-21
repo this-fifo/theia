@@ -21,8 +21,7 @@ import { FileSystemWatcher, FileChangeEvent } from '@theia/filesystem/lib/browse
 import { FileSystem } from '@theia/filesystem/lib/common';
 import URI from '@theia/core/lib/common/uri';
 import { UserStorageUri } from './user-storage-uri';
-
-export const THEIA_USER_STORAGE_FOLDER = '.theia';
+import { THEIA_USER_STORAGE_FOLDER } from '../common/constants';
 
 @injectable()
 export class UserStorageServiceFilesystemImpl implements UserStorageService {

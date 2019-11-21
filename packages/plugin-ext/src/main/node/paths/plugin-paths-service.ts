@@ -20,6 +20,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import URI from '@theia/core/lib/common/uri';
 import { isWindows } from '@theia/core';
+import { THEIA_USER_STORAGE_FOLDER } from '@theia/userstorage/lib/common/constants';
 import { PluginPaths } from './const';
 import { PluginPathsService } from '../../common/plugin-paths-protocol';
 import { THEIA_EXT, VSCODE_EXT, getTemporaryWorkspaceFileUri } from '@theia/workspace/lib/common';
@@ -113,7 +114,7 @@ export class PluginPathsServiceImpl implements PluginPathsService {
         return path.join(
             homeDir,
             ...(isWindows ? this.windowsDataFolders : ['']),
-            PluginPaths.THEIA_DIR
+            THEIA_USER_STORAGE_FOLDER
         );
     }
 

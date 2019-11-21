@@ -23,6 +23,7 @@
     "@theia/search-in-workspace": "^0.12.0",
     "@theia/task": "^0.12.0",
     "@theia/terminal": "^0.12.0",
+    "@theia/userstorage": "^0.12.0",
     "@theia/workspace": "^0.12.0",
     "decompress": "^4.2.0",
     "escape-html": "^1.0.3",
