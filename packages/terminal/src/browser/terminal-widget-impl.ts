@@ -23,7 +23,7 @@ import { isOSX } from '@theia/core/lib/common';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { ShellTerminalServerProxy } from '../common/shell-terminal-protocol';
 import { terminalsPath } from '../common/terminal-protocol';
-import { IBaseTerminalServer } from '../common/base-terminal-protocol';
+import { IBaseTerminalServer, TerminalProcessInfo } from '../common/base-terminal-protocol';
 import { TerminalWatcher } from '../common/terminal-watcher';
 import { ThemeService } from '@theia/core/lib/browser/theming';
 import { TerminalWidgetOptions, TerminalWidget } from './base/terminal-widget';
@@ -253,6 +253,13 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
             return Promise.reject(new Error('terminal is not started'));
         }
         return this.shellTerminalServer.getProcessId(this.terminalId);
+    }
+
+    get processInfo(): Promise<TerminalProcessInfo> {
+        if (!IBaseTerminalServer.validateId(this.terminalId)) {
+            return Promise.reject(new Error('terminal is not started'));
+        }
+        return this.shellTerminalServer.getProcessInfo(this.terminalId);
     }
 
     onDispose(onDispose: () => void): void {

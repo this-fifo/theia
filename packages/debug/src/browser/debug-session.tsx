@@ -37,6 +37,8 @@ import { DebugConfiguration } from '../common/debug-common';
 import { SourceBreakpoint } from './breakpoint/breakpoint-marker';
 import { FileSystem } from '@theia/filesystem/lib/common';
 import { TerminalWidgetOptions, TerminalWidget } from '@theia/terminal/lib/browser/base/terminal-widget';
+import { prepareCommandLine } from './terminal';
+import { TerminalProcessInfo } from '@theia/terminal/lib/common/base-terminal-protocol';
 
 export enum DebugState {
     Inactive,
@@ -367,9 +369,17 @@ export class DebugSession implements CompositeTreeElement {
         return this.connection.onDidCustomEvent;
     }
 
+    protected async prepareCommandLine(processInfo: TerminalProcessInfo | undefined, options: {
+        cwd: string, args: string[], env?: {
+            [key: string]: string | null
+        }
+    }): Promise<string> {
+        return prepareCommandLine(processInfo, options);
+    }
+
     protected async runInTerminal({ arguments: { title, cwd, args, env } }: DebugProtocol.RunInTerminalRequest): Promise<DebugProtocol.RunInTerminalResponse['body']> {
         const terminal = await this.doCreateTerminal({ title, cwd, env });
-        terminal.sendText(args.join(' ') + '\n');
+        terminal.sendText(this.prepareCommandLine(await terminal.processInfo, { cwd, args, env }) + '\n');
         return { processId: await terminal.processId };
     }
 

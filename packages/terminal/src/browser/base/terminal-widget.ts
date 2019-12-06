@@ -16,6 +16,7 @@
 
 import { Event } from '@theia/core';
 import { BaseWidget } from '@theia/core/lib/browser';
+import { TerminalProcessInfo } from '../../common/base-terminal-protocol';
 
 /**
  * Terminal UI widget.
@@ -23,6 +24,8 @@ import { BaseWidget } from '@theia/core/lib/browser';
 export abstract class TerminalWidget extends BaseWidget {
 
     abstract processId: Promise<number>;
+
+    abstract processInfo?: Promise<TerminalProcessInfo>;
 
     /**
      * Start terminal and return terminal id.

@@ -274,6 +274,14 @@ export class TerminalProcess extends Process {
         return this.terminal!.pid;
     }
 
+    get executable(): string {
+        return (this.options as ProcessOptions).command;
+    }
+
+    get arguments(): string[] {
+        return this.options.args || [];
+    }
+
     kill(signal?: string): void {
         if (this.terminal && this.killed === false) {
             this.terminal.kill(signal);
