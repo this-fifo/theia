@@ -23,6 +23,7 @@ import { MessageService, Resource, ResourceProvider, Disposable } from '@theia/c
 import { PreferenceProvider, PreferenceSchemaProvider, PreferenceScope, PreferenceProviderDataChange } from '@theia/core/lib/browser';
 import URI from '@theia/core/lib/common/uri';
 import { PreferenceConfigurations } from '@theia/core/lib/browser/preferences/preference-configurations';
+import { EditorManager, TextEditorDocument } from '@theia/editor/lib/browser';
 
 @injectable()
 export abstract class AbstractResourcePreferenceProvider extends PreferenceProvider {
@@ -30,6 +31,7 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
     protected preferences: { [key: string]: any } = {};
     protected resource: Promise<Resource>;
 
+    @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(ResourceProvider) protected readonly resourceProvider: ResourceProvider;
     @inject(MessageService) protected readonly messageService: MessageService;
     @inject(PreferenceSchemaProvider) protected readonly schemaProvider: PreferenceSchemaProvider;
@@ -102,9 +104,15 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
             return true;
         }
         try {
+            const editor = await this.editorManager.getByUri(new URI(resourceUri!));
+            let tabSize: number = 0;
+            let insertSpaces: boolean = true;
+            if (editor) {
+                [tabSize, insertSpaces] = this.detectIndentation(editor.editor.document);
+            }
             let newContent = '';
             if (path.length || value !== undefined) {
-                const formattingOptions = { tabSize: 3, insertSpaces: true, eol: '' };
+                const formattingOptions = { tabSize, insertSpaces, eol: '' };
                 const edits = jsoncparser.modify(content, path, value, { formattingOptions });
                 newContent = jsoncparser.applyEdits(content, edits);
             }
@@ -219,6 +227,35 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
         if (changes.length > 0) {
             this.emitPreferencesChangedEvent(changes);
         }
+    }
+
+    /**
+     * Detect the minimum indentation and type of indentation to be used
+     * as formatting options when using `jsoncparser`.
+     * @param text the preference text editor document.
+     *
+     * @returns a tuple representing the indentation size, and if it spaces.
+     */
+    protected detectIndentation(text: TextEditorDocument): [number, boolean] {
+        // Get the number of lines present in the text document.
+        const lineCount = text.lineCount;
+        // Store the current index which will be used iterate over the document.
+        let index = 0;
+        // Iterate over the each line in the text document, getting the first indentation that is not zero.
+        while (index < lineCount) {
+            // Get the line content of the document a the given index.
+            const line = text.getLineContent(index + 1);
+            // Determine how many leading spaces are present in the document.
+            const indentation = line.search(/\S|$/);
+            // Return the first non-zero indentation.
+            if (indentation > 0) {
+                // Determine if the line is indented with spaces or tabs.
+                const isSpaces = !line.startsWith('\t');
+                return [indentation, isSpaces];
+            }
+            index++;
+        }
+        return [0, true];
     }
 
 }

@@ -46,6 +46,9 @@ import { bindUserStorage } from '@theia/userstorage/lib/browser/user-storage-fro
 import { FileSystemWatcherServer } from '@theia/filesystem/lib/common/filesystem-watcher-protocol';
 import { MockFilesystemWatcherServer } from '@theia/filesystem/lib/common/test/mock-filesystem-watcher-server';
 import { bindLaunchPreferences } from './launch-preferences';
+import { EditorManager } from '@theia/editor/lib/browser/editor-manager';
+import URI from '@theia/core/lib/common/uri';
+import { EditorWidget } from '@theia/editor/lib/browser/editor-widget';
 
 disableJSDOM();
 
@@ -333,12 +336,12 @@ describe('Launch Preferences', () => {
     function testLaunchAndSettingsSuite({
         name, expectation, launch, only, configMode
     }: {
-            name: string,
-            expectation: any,
-            launch?: any,
-            only?: boolean,
-            configMode?: ConfigMode
-        }): void {
+        name: string,
+        expectation: any,
+        launch?: any,
+        only?: boolean,
+        configMode?: ConfigMode
+    }): void {
         testSuite({
             name: name + ' Launch Configuration',
             launch,
@@ -398,13 +401,13 @@ describe('Launch Preferences', () => {
     function testConfigSuite({
         configMode, expectation, inspectExpectation, settings, launch, only
     }: {
-            configMode: ConfigMode
-            expectation: any,
-            inspectExpectation?: any,
-            launch?: any,
-            settings?: any,
-            only?: boolean
-        }): void {
+        configMode: ConfigMode
+        expectation: any,
+        inspectExpectation?: any,
+        launch?: any,
+        settings?: any,
+        only?: boolean
+    }): void {
 
         describe(JSON.stringify(configMode, undefined, 2), () => {
 
@@ -458,6 +461,11 @@ describe('Launch Preferences', () => {
                 bindPreferenceProviders(bind, unbind);
                 bindWorkspacePreferences(bind);
                 container.bind(WorkspaceService).toSelf().inSingletonScope();
+                container.bind(EditorManager).toConstantValue(<EditorManager>{
+                    getByUri(uri: URI): Promise<EditorWidget | undefined> {
+                        return Promise.resolve(undefined);
+                    }
+                });
                 container.bind(WindowService).toConstantValue(new MockWindowService());
 
                 const workspaceServer = new MockWorkspaceServer();
